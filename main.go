@@ -82,6 +82,18 @@ func patchCalculations(c echo.Context) error {
 	return c.JSON(http.StatusBadRequest, map[string]string{"error": "Calculation not found"})
 }
 
+func deleteCalculations(c echo.Context) error {
+	id := c.Param("id")
+
+	for i, calculation := range calculations {
+		if calculation.ID == id {
+			calculations = append(calculations[:i], calculations[i+1:]...)
+			return c.NoContent(http.StatusNoContent)
+		}
+	}
+	return c.JSON(http.StatusBadRequest, map[string]string{"error": "Calculation not found"})
+}
+
 func main() {
 	e := echo.New()
 	e.Use(middleware.CORS())
@@ -90,6 +102,7 @@ func main() {
 	e.GET("/calculations", getCalculations)
 	e.POST("/calculations", postCalculations)
 	e.PATCH("/calculations/:id", patchCalculations)
+	e.DELETE("/calculations/:id", deleteCalculations)
 
 	e.Start("localhost:8080")
 }
