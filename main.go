@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/Knetic/govaluate"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"gorm.io/driver/postgres"
@@ -58,72 +59,79 @@ func getCalculations(c echo.Context) error {
 	return c.JSON(http.StatusOK, calculations)
 }
 
-//func postCalculations(c echo.Context) error {
-//	var req CalculationRequest
-//
-//	if err := c.Bind(&req); err != nil {
-//		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
-//	}
-//
-//	result, err := calculateExpression(req.Expression)
-//
-//	if err != nil {
-//		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid expression"})
-//	}
-//	calc := Calculation{
-//		ID:         uuid.NewString(),
-//		Expression: req.Expression,
-//		Result:     result,
-//	}
-//	calculations = append(calculations, calc)
-//	return c.JSON(http.StatusCreated, calc)
-//}
-//
-//func patchCalculations(c echo.Context) error {
-//	id := c.Param("id")
-//	var req CalculationRequest
-//
-//	if err := c.Bind(&req); err != nil {
-//		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
-//	}
-//
-//	result, err := calculateExpression(req.Expression)
-//	if err != nil {
-//		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid expression"})
-//	}
-//
-//	for i, calculation := range calculations {
-//		if calculation.ID == id {
-//			calculations[i].Expression = req.Expression
-//			calculations[i].Result = result
-//			return c.JSON(http.StatusOK, calculations[i])
-//		}
-//	}
-//	return c.JSON(http.StatusBadRequest, map[string]string{"error": "Calculation not found"})
-//}
-//
-//func deleteCalculations(c echo.Context) error {
-//	id := c.Param("id")
-//
-//	for i, calculation := range calculations {
-//		if calculation.ID == id {
-//			calculations = append(calculations[:i], calculations[i+1:]...)
-//			return c.NoContent(http.StatusNoContent)
-//		}
-//	}
-//	return c.JSON(http.StatusBadRequest, map[string]string{"error": "Calculation not found"})
-//}
+func postCalculations(c echo.Context) error {
+	var req CalculationRequest
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
+
+	result, err := calculateExpression(req.Expression)
+
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid expression"})
+	}
+	calc := Calculation{
+		ID:         uuid.NewString(),
+		Expression: req.Expression,
+		Result:     result,
+	}
+	if err := db.Create(&calc).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not add calculation"})
+	}
+	return c.JSON(http.StatusCreated, calc)
+}
+
+func patchCalculations(c echo.Context) error {
+	id := c.Param("id")
+	var req CalculationRequest
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+	}
+
+	result, err := calculateExpression(req.Expression)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid expression"})
+	}
+
+	var calc Calculation
+
+	if err := db.First(&calc, "id = ?", id).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not find expression"})
+	}
+
+	calc.Expression = req.Expression
+	calc.Result = result
+
+	if err := db.Save(&calc).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not update calculation"})
+	}
+
+	return c.JSON(http.StatusOK, calc)
+}
+
+func deleteCalculations(c echo.Context) error {
+	id := c.Param("id")
+
+	if err := db.Delete(&Calculation{}, "id = ?", id).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not delete calculation"})
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
 
 func main() {
 	initDB()
+
 	e := echo.New()
 	e.Use(middleware.CORS())
 	e.Use(middleware.Logger())
 
 	e.GET("/calculations", getCalculations)
-	//e.POST("/calculations", postCalculations)
-	//e.PATCH("/calculations/:id", patchCalculations)
-	//e.DELETE("/calculations/:id", deleteCalculations)
+	e.POST("/calculations", postCalculations)
+	e.PATCH("/calculations/:id", patchCalculations)
+	e.DELETE("/calculations/:id", deleteCalculations)
 
 	e.Start("localhost:8080")
 }
