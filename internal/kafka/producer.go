@@ -30,14 +30,14 @@ func NewProducer(address []string) (*Producer, error) {
 	return &Producer{producer: p}, nil
 }
 
-func (p *Producer) Produce(message, topic string) error {
+func (p *Producer) Produce(message, topic, key string) error {
 	kafkaMsg := &kafka.Message{
 		TopicPartition: kafka.TopicPartition{
 			Topic:     &topic,
 			Partition: kafka.PartitionAny,
 		},
 		Value: []byte(message),
-		Key:   nil,
+		Key:   []byte(key),
 	}
 	kafkaChan := make(chan kafka.Event)
 	if err := p.producer.Produce(kafkaMsg, kafkaChan); err != nil {
