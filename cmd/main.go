@@ -6,6 +6,9 @@ import (
 	"calculator/internal/handlers"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
@@ -15,8 +18,9 @@ import (
 )
 
 const (
-	topic        = "calculator"
-	numberOfKeys = 20
+	topic         = "calculator"
+	consumerGroup = "calculator"
+	numberOfKeys  = 20
 )
 
 var address = []string{"localhost:9091", "localhost:9092", "localhost:9093"}
@@ -40,6 +44,8 @@ func main() {
 	e.PATCH("/calculations/:id", calcHandler.PatchCalculations)
 	e.DELETE("/calculations/:id", calcHandler.DeleteCalculations)
 
+	e.Start("localhost:8080")
+
 	p, err := k.NewProducer(address)
 	if err != nil {
 		log.Fatal(err)
@@ -55,7 +61,19 @@ func main() {
 		}
 	}
 
-	e.Start("localhost:8080")
+	h := handlers.NewMessageHandler()
+	c, err := k.NewConsumer(h, address, topic, consumerGroup)
+	if err != nil {
+		log.Fatal(err)
+	}
+	c.Start()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	<-sigChan
+	log.Fatal(c.Stop())
+
 }
 
 func generateUUIDString() [numberOfKeys]string {
